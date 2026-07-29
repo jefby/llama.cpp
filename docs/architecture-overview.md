@@ -151,7 +151,7 @@ CMakeLists.txt (根)
 
 | 选项 | 说明 |
 |------|------|
-| `GGML_CUDA` / `GGML_HIP` / `GGML_METAL` / `GGML_VULKAN` / `GGML_SYCL` | 启用对应 GPU 后端。 |
+| `GGML_CUDA` / `GGML_HIP` / `GGML_METAL` / `GGML_VULKAN` / `GGML_SYCL` / `GGML_ET` | 启用对应 GPU 后端。 |
 | `GGML_AVX` / `GGML_AVX2` / `GGML_AVX512` / `GGML_FMA` / `GGML_F16C` | x86 SIMD 指令集开关。 |
 | `GGML_NATIVE` | 针对当前 CPU 优化。 |
 | `GGML_RPC` | 启用 RPC 后端。 |
@@ -267,6 +267,7 @@ CPU (始终)
 CUDA / HIP / MUSA (NVIDIA / AMD / 摩尔线程)
 Metal (Apple GPU)
 Vulkan / SYCL / OpenCL (跨平台 GPU)
+ET (RISC-V accelerator)
 BLAS / RPC / CANN / ...
 ```
 

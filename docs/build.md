@@ -23,6 +23,7 @@ The following sections describe how to build with different backends and options
 * [Vulkan](#vulkan)
 * [CANN](#cann)
 * [ZenDNN](#zendnn)
+* [ET](#et)
 * [Arm® KleidiAI™](#arm-kleidiai)
 * [OpenCL](#opencl)
 * [Android](#android-1)
@@ -606,6 +607,44 @@ You can test with:
 ```
 
 For detailed information about hardware support, setup instructions, and performance optimization, refer to [llama.cpp for ZenDNN](./backend/ZenDNN.md).
+
+## ET
+
+This provides GPU acceleration using ET-SOC, an open-source manycore RISC-V accelerator platform.
+
+Check [ET.md](./backend/ET.md) for more information.
+
+### Prerequisites
+
+1. **Install custom RISC-V toolchain** - Follow instructions at:
+   [https://github.com/aifoundry-org/riscv-gnu-toolchain/tree/et/aifoundry](https://github.com/aifoundry-org/riscv-gnu-toolchain/tree/et/aifoundry)
+
+2. **Install ET platform** - Follow instructions at:
+   [https://github.com/aifoundry-org/et-platform](https://github.com/aifoundry-org/et-platform)
+
+Both should be installed to `/opt/et` (or set `ET_TOOLCHAIN` and `ET_PLATFORM` environment variables accordingly).
+
+### Build
+
+```bash
+# Build with ET backend
+cmake -B build -DGGML_ET=ON
+cmake --build build --config Release
+
+# Build targeting sysemu backend instead of physical hardware
+cmake -B build -DGGML_ET=ON -DGGML_ET_SYSEMU=ON
+cmake --build build --config Release
+```
+
+### Run
+
+```bash
+llama-cli -m mymodel.gguf
+# or
+llama-server -hf ggml-org/Qwen3-8B-GGUF:q8_0
+```
+
+For detailed information about supported models and development, refer to [llama.cpp for ET](./backend/ET.md).
 
 ## Arm® KleidiAI™
 KleidiAI is a library of optimized microkernels for AI workloads, specifically designed for Arm CPUs. These microkernels enhance performance and can be enabled for use by the CPU backend.

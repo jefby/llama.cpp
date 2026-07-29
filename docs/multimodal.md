@@ -95,6 +95,9 @@ NOTE: some models may require large context window, for example: `-c 8192`
 # Moondream2 20250414 version
 (tool_name) -hf ggml-org/moondream2-20250414-GGUF
 
+# Granite 4 Vision
+(tool_name) -hf ggml-org/Granite-4-Vision-GGUF
+
 # Gemma 4
 (tool_name) -hf ggml-org/gemma-4-E2B-it-GGUF
 (tool_name) -hf ggml-org/gemma-4-E4B-it-GGUF
