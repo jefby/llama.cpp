@@ -10,8 +10,8 @@ llama.cpp 是一个以 C/C++ 实现的 LLM 推理引擎，核心目标是：
 
 - 在无外部深度学习框架依赖的情况下运行 Transformer 类大模型。
 - 通过 GGUF 格式承载模型权重与元数据。
-- 支持 CPU 与多种 GPU 后端（CUDA、Metal、Vulkan、SYCL、HIP 等）。
-- 提供稳定的 C API，并在此基础上构建 CLI、HTTP Server、多模态等应用工具。
+- 支持 CPU 与多种 GPU / NPU 后端（CUDA、Metal、Vulkan、SYCL、HIP、OpenVINO、WebGPU 等）。
+- 提供稳定的 C API，并在此基础上构建 CLI、HTTP Server、多模态、音频生成等应用工具。
 
 整体架构采用清晰的分层设计：
 
@@ -26,7 +26,7 @@ llama.cpp 是一个以 C/C++ 实现的 LLM 推理引擎，核心目标是：
                  |
 张量计算引擎:   ggml/ (张量、计算图、量化、后端抽象)
                  |
-硬件后端:       CPU / CUDA / Metal / Vulkan / SYCL / ...
+硬件后端:       CPU / CUDA / Metal / Vulkan / SYCL / HIP / OpenVINO / WebGPU / ...
 ```
 
 ---
@@ -96,7 +96,7 @@ ggml_backend_sched_t (调度器)
 | 采样器 | `src/llama-sampler.cpp` | 温度、top-k/top-p、mirostat、grammar 等。 |
 | 记忆/KV | `src/llama-kv-cache*.cpp` | 标准 KV Cache、DSA、ISWA、recurrent、hybrid memory。 |
 | 批处理 | `src/llama-batch.cpp` | `llama_batch` -> `llama_ubatch` 拆分与填充。 |
-| 架构实现 | `src/models/*.cpp` | 150+ 模型架构（llama、qwen、deepseek、gemma 等）。 |
+| 架构实现 | `src/models/*.cpp` | 145+ 模型架构（llama、qwen、deepseek、gemma 等）。 |
 
 关键结构体：
 
@@ -117,6 +117,7 @@ ggml_backend_sched_t (调度器)
 | `sampling.h/cpp` | `common_sampler`，在 `llama_sampler` 基础上增加 grammar、性能统计等。 |
 | `log.h/cpp` | 基于工作线程的日志系统。 |
 | `download.h/cpp` | Hugging Face 模型下载。 |
+| `llguidance.cpp` | 可选的 LLGuidance 结构化输出支持（需 `LLAMA_LLGUIDANCE=ON`）。 |
 
 ---
 
@@ -151,11 +152,11 @@ CMakeLists.txt (根)
 
 | 选项 | 说明 |
 |------|------|
-| `GGML_CUDA` / `GGML_HIP` / `GGML_METAL` / `GGML_VULKAN` / `GGML_SYCL` / `GGML_ET` | 启用对应 GPU 后端。 |
+| `GGML_CUDA` / `GGML_HIP` / `GGML_METAL` / `GGML_VULKAN` / `GGML_SYCL` / `GGML_ET` / `GGML_OPENVINO` / `GGML_WEBGPU` / `GGML_HEXAGON` / `GGML_ZENDNN` / `GGML_ZDNN` / `GGML_VIRTGPU` | 启用对应 GPU / NPU / 加速器后端。 |
 | `GGML_AVX` / `GGML_AVX2` / `GGML_AVX512` / `GGML_FMA` / `GGML_F16C` | x86 SIMD 指令集开关。 |
 | `GGML_NATIVE` | 针对当前 CPU 优化。 |
 | `GGML_RPC` | 启用 RPC 后端。 |
-| `LLAMA_BUILD_TESTS` / `LLAMA_BUILD_EXAMPLES` / `LLAMA_BUILD_TOOLS` / `LLAMA_BUILD_SERVER` | 控制构建范围。 |
+| `LLAMA_BUILD_TESTS` / `LLAMA_BUILD_EXAMPLES` / `LLAMA_BUILD_TOOLS` / `LLAMA_BUILD_SERVER` / `LLAMA_BUILD_APP` / `LLAMA_BUILD_UI` | 控制构建范围与统一入口、Server 内嵌 Web UI。 |
 
 典型构建命令：
 
@@ -267,6 +268,12 @@ CPU (始终)
 CUDA / HIP / MUSA (NVIDIA / AMD / 摩尔线程)
 Metal (Apple GPU)
 Vulkan / SYCL / OpenCL (跨平台 GPU)
+WebGPU (浏览器/跨平台 GPU)
+OpenVINO (Intel GPU / NPU)
+Hexagon (Qualcomm HTP / NPU)
+ZenDNN (AMD CPU)
+ZDNN (IBM z16 AI accelerator)
+VirtGPU (虚拟 GPU 前端)
 ET (RISC-V accelerator)
 BLAS / RPC / CANN / ...
 ```
@@ -301,7 +308,7 @@ llama_context::graph_compute()
 
 ## 8. KV Cache 管理
 
-`llama_kv_cache` 实现了 `llama_memory_i` 接口，是 Transformer decoder 的标准 KV Cache。
+`llama_kv_cache` 实现了 `llama_memory_i` 接口，是 Transformer decoder 的标准 KV Cache。针对特定模型还有 `llama_kv_cache_dsa`、`llama_kv_cache_iswa`、`llama_kv_cache_dsv4`、`llama_kv_cache_msa` 以及 recurrent/hybrid memory 等变体。
 
 ### 8.1 布局
 
@@ -334,16 +341,24 @@ build qkv -> RoPE
 
 | 工具 | 用途 |
 |------|------|
-| `llama-server` | HTTP API 服务，兼容 OpenAI/Anthropic 协议。 |
+| `llama-server` | HTTP API 服务，兼容 OpenAI/Anthropic 协议，内置 Web UI。 |
 | `llama-cli` | 命令行交互式聊天客户端。 |
 | `llama-quantize` | 模型量化（F32/F16 -> Q4_K_M、IQ 等）。 |
 | `llama-gguf-split` | GGUF 拆分/合并。 |
 | `llama-bench` | 性能基准测试。 |
+| `llama-batched-bench` | 批量解码性能基准测试。 |
 | `llama-perplexity` | 困惑度计算。 |
 | `llama-imatrix` | 重要性矩阵计算。 |
-| `llama-mtmd-cli` | 多模态推理 CLI。 |
+| `llama-completion` | 文本补全（非交互式）。 |
+| `llama-mtmd-cli` | 多模态推理 CLI（支持视觉、音频、视频等输入）。 |
+| `llama-tts` | 文本转语音（基于 libmtmd）。 |
 | `llama-tokenize` | 仅做 tokenize。 |
 | `llama-export-lora` | LoRA adapter 合并/导出。 |
+| `llama-cvector-generator` | 控制向量（control vector）生成。 |
+| `llama-fit-params` | 计算使模型适配设备内存的参数。 |
+| `llama-rpc` | RPC 后端服务（概念验证阶段）。 |
+| `llama-results` | 校验模型输出是否随版本变化。 |
+| `llama-parser` | 聊天模板解析与分析。 |
 
 ### 9.2 examples/ 典型示例
 
@@ -363,11 +378,13 @@ build qkv -> RoPE
 `app/llama.cpp` 实现统一命令行入口 `llama`，子命令包括：
 
 ```text
-serve, cli, download, completion, bench, batched-bench,
+serve, cli, update, download, completion, bench, batched-bench,
 fit-params, quantize, perplexity, version, licenses, help
 ```
 
-构建时链接各工具的 `-impl` 库：
+其中 `update` 仅在通过 `llama-install.sh` 安装的构建中可用。
+
+构建时链接核心工具的 `-impl` 库（并非所有 tools/ 下的工具都会被打包进统一入口）：
 
 ```cmake
 add_executable(llama llama.cpp download.cpp)
@@ -456,6 +473,12 @@ flowchart TB
 | CUDA 后端 | `ggml/src/ggml-cuda/ggml-cuda.cu` |
 | Metal 后端 | `ggml/src/ggml-metal/ggml-metal.cpp` |
 | Vulkan 后端 | `ggml/src/ggml-vulkan/ggml-vulkan.cpp` |
+| SYCL 后端 | `ggml/src/ggml-sycl/ggml-sycl.cpp` |
+| OpenCL 后端 | `ggml/src/ggml-opencl/ggml-opencl.cpp` |
+| WebGPU 后端 | `ggml/src/ggml-webgpu/ggml-webgpu.cpp` |
+| OpenVINO 后端 | `ggml/src/ggml-openvino/ggml-openvino.cpp` |
+| Hexagon 后端 | `ggml/src/ggml-hexagon/ggml-hexagon.cpp` |
+| ET 后端 | `ggml/src/ggml-et/ggml-et.cpp` |
 | 参数解析 | `common/arg.cpp`、`common/common.cpp` |
 | 聊天模板 | `common/chat.cpp` |
 | 采样封装 | `common/sampling.cpp` |

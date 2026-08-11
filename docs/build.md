@@ -28,6 +28,7 @@ The following sections describe how to build with different backends and options
 * [OpenCL](#opencl)
 * [Android](#android-1)
 * [OpenVINO](#openvino)
+* [WebGPU](#webgpu)
 * [Notes about GPU-accelerated backends](#notes-about-gpu-accelerated-backends)
 
 ## CPU Build
