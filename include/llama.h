@@ -457,6 +457,8 @@ extern "C" {
     // lora adapter
     struct llama_adapter_lora;
 
+    LLAMA_API const char * llama_version(void);
+
     // Helpers for getting default parameters
     // TODO: update API to start accepting pointers to params structs (https://github.com/ggml-org/llama.cpp/discussions/9172)
     LLAMA_API struct llama_model_params          llama_model_default_params(void);
@@ -731,7 +733,7 @@ extern "C" {
 
     // Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
     // Returns false if a partial sequence cannot be removed. Removing a whole sequence never fails
-    // seq_id < 0 : match any sequence
+    // seq_id < 0 : match any sequence [TAG_LLAMA_SEQ_ID_NEG]
     // p0 < 0     : [0,  p1]
     // p1 < 0     : [p0, inf)
     LLAMA_API bool llama_memory_seq_rm(
@@ -883,6 +885,7 @@ extern "C" {
                const llama_token * tokens,
                           size_t   n_token_count);
 
+    // If tokens_out is NULL, only the token count is reported through n_token_count_out and no state is loaded
     LLAMA_API size_t llama_state_seq_load_file(
             struct llama_context * ctx,
                       const char * filepath,
