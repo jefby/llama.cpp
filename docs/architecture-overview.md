@@ -43,6 +43,7 @@ llama.cpp 是一个以 C/C++ 实现的 LLM 推理引擎，核心目标是：
 | `examples/` | 直接调用 `llama.h` API 的示例程序，覆盖简单生成、批处理、投机解码、嵌入等场景。 |
 | `app/` | 统一入口 `llama`，将主要工具以子命令形式打包到一个二进制中。 |
 | `tests/` | 单元测试与集成测试，包括 tokenizer、量化、后端算子、状态保存等。 |
+| `vendor/` | 内置的第三方依赖（nlohmann/json、cpp-httplib、miniaudio、stb、subprocess.h、hash 库等），统一由根 `CMakeLists.txt` 通过 `add_subdirectory(vendor)` 引入。 |
 | `conversion/` | Hugging Face 模型到 GGUF 的转换脚本，按模型架构分文件组织。 |
 | `gguf-py/` | Python 版 GGUF 读写库。 |
 
@@ -96,7 +97,7 @@ ggml_backend_sched_t (调度器)
 | 采样器 | `src/llama-sampler.cpp` | 温度、top-k/top-p、mirostat、grammar 等。 |
 | 记忆/KV | `src/llama-kv-cache*.cpp` | 标准 KV Cache、DSA、ISWA、recurrent、hybrid memory。 |
 | 批处理 | `src/llama-batch.cpp` | `llama_batch` -> `llama_ubatch` 拆分与填充。 |
-| 架构实现 | `src/models/*.cpp` | 145+ 模型架构（llama、qwen、deepseek、gemma 等）。 |
+| 架构实现 | `src/models/*.cpp` | 150+ 模型架构（llama、qwen、deepseek、gemma、kimi-k3、bailingmoe3、dots3note、granite-swa、minimax-01 等）。 |
 
 关键结构体：
 
@@ -115,6 +116,9 @@ ggml_backend_sched_t (调度器)
 | `arg.h/cpp` | 命令行参数定义与解析。 |
 | `chat.h/cpp` | Jinja 对话模板应用、OpenAI 格式消息解析。 |
 | `sampling.h/cpp` | `common_sampler`，在 `llama_sampler` 基础上增加 grammar、性能统计等。 |
+| `json.h/cpp` | 对 vendor 中 JSON 库（目前为 nlohmann::json）的轻量 pimpl 封装，供各模块共用。 |
+| `peg-parser.h/cpp` | PEG 解析器，用于结构化输出解析（见 `docs/development/parsing.md`）。 |
+| `chat-auto-parser.h/cpp`、`chat-peg-parser.h` | 聊天输出的自动格式检测与解析。 |
 | `log.h/cpp` | 基于工作线程的日志系统。 |
 | `download.h/cpp` | Hugging Face 模型下载。 |
 | `llguidance.cpp` | 可选的 LLGuidance 结构化输出支持（需 `LLAMA_LLGUIDANCE=ON`）。 |
@@ -308,7 +312,7 @@ llama_context::graph_compute()
 
 ## 8. KV Cache 管理
 
-`llama_kv_cache` 实现了 `llama_memory_i` 接口，是 Transformer decoder 的标准 KV Cache。针对特定模型还有 `llama_kv_cache_dsa`、`llama_kv_cache_iswa`、`llama_kv_cache_dsv4`、`llama_kv_cache_msa` 以及 recurrent/hybrid memory 等变体。
+`llama_kv_cache` 实现了 `llama_memory_i` 接口，是 Transformer decoder 的标准 KV Cache。针对特定模型还有 `llama_kv_cache_iswa`、`llama_kv_cache_dsa` 及其组合实现 `llama-kv-cache-dsa-iswa.cpp`、`llama_kv_cache_dsv4`、`llama_kv_cache_msa`，以及 recurrent/hybrid memory（含 `llama-memory-hybrid-iswa`）等变体。
 
 ### 8.1 布局
 
@@ -358,7 +362,7 @@ build qkv -> RoPE
 | `llama-fit-params` | 计算使模型适配设备内存的参数。 |
 | `llama-rpc` | RPC 后端服务（概念验证阶段）。 |
 | `llama-results` | 校验模型输出是否随版本变化。 |
-| `llama-parser` | 聊天模板解析与分析。 |
+| `ui` (`tools/ui`) | 基于 SvelteKit 的 Web UI 源码，构建产物内嵌进 server。 |
 
 ### 9.2 examples/ 典型示例
 
@@ -482,7 +486,8 @@ flowchart TB
 | 参数解析 | `common/arg.cpp`、`common/common.cpp` |
 | 聊天模板 | `common/chat.cpp` |
 | 采样封装 | `common/sampling.cpp` |
-| Server | `tools/server/server.cpp` |
+| Server 入口 | `tools/server/main.cpp`、`tools/server/server.cpp` |
+| Server 核心模块 | `tools/server/server-context.cpp`、`server-task.cpp`、`server-queue.cpp`、`server-chat.cpp`、`server-models.cpp`、`server-http.cpp` 等 |
 | CLI | `tools/cli/cli.cpp` |
 | 统一入口 | `app/llama.cpp` |
 
